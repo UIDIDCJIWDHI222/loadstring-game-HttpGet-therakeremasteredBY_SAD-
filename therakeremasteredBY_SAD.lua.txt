@@ -1,0 +1,260 @@
+-- The Rake Remastered: Optimized ESP (No Lag) + Working Fullbright & Third Person
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "The Rake Remastered",
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "Optimized by SAD_builders",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Visuals", 4483362458)
+local SettingsTab = Window:CreateTab("Settings", 4483362458)
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- ===== STATE VARIABLES =====
+local Toggles = {
+    Rake = false,
+    Gun = false,
+    Scrap = false,
+    Player = false
+}
+
+-- Переменные для настроек из твоего кода
+local isThirdPersonEnabled = false
+local isLoopFullbrightEnabled = false
+local targetRakeName = "Rake"
+
+local Highlights = {
+    Rake = {},
+    Gun = {},
+    Scrap = {},
+    Player = {}
+}
+
+-- ===== HELPER FUNCTIONS =====
+local function createHighlight(obj, color, storageTable)
+    if storageTable[obj] then return end
+    if not obj then return end
+
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.FillTransparency = 0.3
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = obj
+    hl.Parent = game:GetService("CoreGui")
+    
+    storageTable[obj] = hl
+end
+
+local function removeHighlight(obj, storageTable)
+    if storageTable[obj] then
+        storageTable[obj]:Destroy()
+        storageTable[obj] = nil
+    end
+end
+
+local function isScrap(obj)
+    if not (obj:IsA("Model") or obj:IsA("BasePart")) then return false end
+    local name = obj.Name:lower()
+    if name:find("scrap") or name:find("metal") or name:find("gear") or name:find("junk") then
+        local hasPrompt = obj:FindFirstChildOfClass("ProximityPrompt") or obj:FindFirstChildOfClass("ClickDetector")
+        if hasPrompt or name:find("scrap") then return true end
+    end
+    return false
+end
+
+local function isGun(obj)
+    if not (obj:IsA("Tool") or obj:IsA("Model")) then return false end
+    return obj.Name:lower():find("flare") ~= nil
+end
+
+-- ===== EVENT LISTENERS (Для ESP без лагов) =====
+Workspace.DescendantAdded:Connect(function(obj)
+    task.wait(0.1)
+    if Toggles.Gun and isGun(obj) then
+        createHighlight(obj, Color3.fromRGB(255, 255, 0), Highlights.Gun)
+    elseif Toggles.Scrap and isScrap(obj) then
+        createHighlight(obj, Color3.fromRGB(255, 165, 0), Highlights.Scrap)
+    elseif Toggles.Rake and obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj.Name:lower() == targetRakeName:lower() then
+        createHighlight(obj, Color3.fromRGB(255, 0, 0), Highlights.Rake)
+    end
+end)
+
+Workspace.DescendantRemoving:Connect(function(obj)
+    removeHighlight(obj, Highlights.Rake)
+    removeHighlight(obj, Highlights.Gun)
+    removeHighlight(obj, Highlights.Scrap)
+end)
+
+local function handlePlayerESP(plr)
+    if plr == LocalPlayer then return end
+    if Toggles.Player and plr.Character then
+        createHighlight(plr.Character, Color3.fromRGB(0, 255, 0), Highlights.Player)
+    end
+    plr.CharacterAdded:Connect(function(char)
+        if Toggles.Player then
+            task.wait(0.5)
+            createHighlight(char, Color3.fromRGB(0, 255, 0), Highlights.Player)
+        end
+    end)
+    plr.CharacterRemoving:Connect(function(char)
+        removeHighlight(char, Highlights.Player)
+    end)
+end
+
+Players.PlayerAdded:Connect(handlePlayerESP)
+for _, plr in pairs(Players:GetPlayers()) do handlePlayerESP(plr) end
+
+-- ===== UI TOGGLES (Visuals) =====
+
+MainTab:CreateToggle({
+   Name = "Rake Highlight (Red)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Toggles.Rake = Value
+       if Value then
+           for _, obj in pairs(Workspace:GetDescendants()) do
+               if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj.Name:lower() == targetRakeName:lower() then
+                   createHighlight(obj, Color3.fromRGB(255, 0, 0), Highlights.Rake)
+               end
+           end
+       else
+           for obj, hl in pairs(Highlights.Rake) do hl:Destroy() end
+           Highlights.Rake = {}
+       end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Flare Gun ESP (Yellow)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Toggles.Gun = Value
+       if Value then
+           for _, obj in pairs(Workspace:GetDescendants()) do
+               if isGun(obj) then createHighlight(obj, Color3.fromRGB(255, 255, 0), Highlights.Gun) end
+           end
+       else
+           for obj, hl in pairs(Highlights.Gun) do hl:Destroy() end
+           Highlights.Gun = {}
+       end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Scrap ESP (Orange)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Toggles.Scrap = Value
+       if Value then
+           for _, obj in pairs(Workspace:GetDescendants()) do
+               if isScrap(obj) then createHighlight(obj, Color3.fromRGB(255, 165, 0), Highlights.Scrap) end
+           end
+       else
+           for obj, hl in pairs(Highlights.Scrap) do hl:Destroy() end
+           Highlights.Scrap = {}
+       end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Player ESP (Green)",
+   CurrentValue = false,
+   Callback = function(Value)
+       Toggles.Player = Value
+       if Value then
+           for _, plr in pairs(Players:GetPlayers()) do
+               if plr ~= LocalPlayer and plr.Character then
+                   createHighlight(plr.Character, Color3.fromRGB(0, 255, 0), Highlights.Player)
+               end
+           end
+       else
+           for char, hl in pairs(Highlights.Player) do hl:Destroy() end
+           Highlights.Player = {}
+       end
+   end,
+})
+
+-- ===== UI TOGGLES (Settings - из твоего кода) =====
+
+SettingsTab:CreateToggle({
+   Name = "Force Third Person (View)",
+   CurrentValue = false,
+   Flag = "ThirdPersonToggle",
+   Callback = function(Value)
+       isThirdPersonEnabled = Value
+       local lp = game.Players.LocalPlayer
+       if not Value then
+           lp.CameraMode = Enum.CameraMode.LockFirstPerson
+       end
+   end,
+})
+
+SettingsTab:CreateToggle({
+   Name = "Loop Fullbright (Comfortable)",
+   CurrentValue = false,
+   Flag = "LoopFullbrightToggle",
+   Callback = function(Value)
+       isLoopFullbrightEnabled = Value
+       local Lighting = game:GetService("Lighting")
+       if Value then
+           Lighting.Brightness = 2
+       else
+           Lighting.Brightness = 0
+       end
+   end,
+})
+
+SettingsTab:CreateInput({
+   Name = "Rake Model Name (if not 'Rake')",
+   CurrentValue = "Rake",
+   PlaceholderText = "Enter exact name from F9 console",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+       targetRakeName = Text
+   end,
+})
+
+-- ===== RENDER LOOP (Использует новые переменные) =====
+game:GetService("RunService").RenderStepped:Connect(function()
+    -- Работает от переменной isThirdPersonEnabled
+    if isThirdPersonEnabled then
+        LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        if LocalPlayer.CameraMinZoomDistance < 12 then 
+            LocalPlayer.CameraMinZoomDistance = 12 
+        end
+        if LocalPlayer.CameraMaxZoomDistance < 128 then
+            LocalPlayer.CameraMaxZoomDistance = 128
+        end
+    end
+
+    -- Работает от переменной isLoopFullbrightEnabled
+    if isLoopFullbrightEnabled then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 12
+        Lighting.Ambient = Color3.fromRGB(180, 180, 180)
+        Lighting.OutdoorAmbient = Color3.fromRGB(180, 180, 180)
+        Lighting.FogEnd = 10000
+        
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("ColorCorrectionEffect") then v.Brightness = 0; v.Contrast = 0 end
+            if v:IsA("Atmosphere") then v.Density = 0; v.Haze = 0 end
+        end
+    end
+end)
+
+Rayfield:Notify({
+   Title = "Script Loaded",
+   Content = "Optimized ESP + Working Settings initialized.",
+   Duration = 5,
+   Image = 4483362458,
+})
